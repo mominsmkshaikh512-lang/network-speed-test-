@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Internet Speed Test</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:Arial,Helvetica,sans-serif; }
+
+  body {
+    min-height:100vh;
+    background: radial-gradient(circle at 50% 15%, #102b45 0%, #061321 43%, #020913 100%);
+    color:#fff;
+    overflow-x:hidden;
+  }
+
+  .container { width:94%; max-width:1100px; margin:auto; text-align:center; padding:32px 0 30px; }
+
+  h1 { font-size:48px; font-weight:700; margin-bottom:9px; }
+  .subtitle { color:#9cafc5; font-size:18px; margin-bottom:40px; }
+
+  .gauges { display:flex; justify-content:center; align-items:center; gap:65px; }
+  .gauge { width:370px; height:370px; position:relative; display:flex; justify-content:center; align-items:center; }
+  .gauge svg { position:absolute; width:100%; height:100%; transform:rotate(-90deg); overflow:visible; }
+  .gauge-bg { fill:none; stroke:#182c42; stroke-width:5; }
+  .gauge-progress { fill:none; stroke-width:5; stroke-linecap:round; stroke-dasharray:1068; stroke-dashoffset:1068; transition:stroke-dashoffset .18s linear; }
+  .download-progress { stroke:#00dcff; filter:drop-shadow(0 0 5px #00dcff) drop-shadow(0 0 13px rgba(0,220,255,.65)); }
+  .upload-progress { stroke:#d93cff; filter:drop-shadow(0 0 5px #d93cff) drop-shadow(0 0 13px rgba(217,60,255,.65)); }
+
+  .gauge-inner { position:absolute; width:335px; height:335px; border-radius:50%; border:3px solid #162a40; box-shadow: inset 0 0 40px rgba(0,0,0,.55); }
+  .gauge-content { position:relative; z-index:5; display:flex; flex-direction:column; align-items:center; }
+
+  .speed-icon { font-size:70px; line-height:1; margin-bottom:10px; font-weight:300; }
+  .download-icon { color:#00dcff; text-shadow:0 0 18px rgba(0,220,255,.8); animation:downloadFloat 2s ease-in-out infinite; }
+  .upload-icon { color:#d93cff; text-shadow:0 0 18px rgba(217,60,255,.8); animation:uploadFloat 2s ease-in-out infinite; }
+
+  @keyframes downloadFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(7px);} }
+  @keyframes uploadFloat { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-7px);} }
+
+  .gauge-title { font-size:18px; font-weight:bold; margin-bottom:9px; }
+  .download-title { color:#00dcff; }
+  .upload-title { color:#d93cff; }
+
+  .speed-value { font-size:60px; font-weight:700; line-height:1; letter-spacing:-2px; }
+  .speed-unit { color:#a8b9ca; font-size:18px; margin-top:11px; }
+  .gauge-status { color:#91a6ba; font-size:13px; margin-top:8px; min-height:16px; }
+
+  .start-btn {
+    margin-top:25px; padding:17px 56px; border:none; border-radius:50px;
+    color:white; font-size:18px; font-weight:bold; cursor:pointer;
+    background: linear-gradient(90deg,#08c8f5,#385cff);
+    box-shadow: 0 10px 35px rgba(0,140,255,.30);
+    transition:.25s;
+  }
+  .start-btn:hover { transform:translateY(-3px) scale(1.03); box-shadow: 0 15px 45px rgba(0,180,255,.40); }
+  .start-btn:active { transform:scale(.97); }
+  .start-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+
+  .progress-container { width:100%; height:6px; margin:30px auto 0; background:#14263a; border-radius:20px; overflow:hidden; display:none; }
+  .progress-bar { width:0%; height:100%; border-radius:20px; background: linear-gradient(90deg,#00dcff,#326cff,#d93cff); transition:width .15s linear; }
+
+  .info-panel {
+    margin-top:35px; width:100%; min-height:125px;
+    border:1px solid #203750; border-radius:18px;
+    background: rgba(8,23,40,.72); backdrop-filter:blur(12px);
+    display:grid; grid-template-columns:1fr 1fr; align-items:center;
+  }
+  .info-item { min-height:75px; display:flex; justify-content:center; align-items:center; gap:18px; border-right:1px solid #29405a; }
+  .info-item:last-child { border-right:none; }
+  .info-icon { width:62px; height:62px; border:1px solid #087d9c; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#00dcff; font-size:31px; box-shadow: 0 0 20px rgba(0,220,255,.08); }
+  .info-text { text-align:left; }
+  .info-label { color:#8ea4ba; font-size:14px; font-weight:bold; letter-spacing:.7px; margin-bottom:5px; }
+  .info-value { font-size:28px; font-weight:bold; }
+  .info-unit { color:#91a5ba; font-size:13px; margin-top:3px; }
+
+  .error-banner {
+    display:none; margin-top:20px; padding:14px 20px; border-radius:12px;
+    background: rgba(255,70,70,.12); border:1px solid rgba(255,90,90,.4);
+    color:#ff9a9a; font-size:14px; text-align:left; line-height:1.5;
+  }
+
+  .footer { color:#71869d; font-size:13px; margin-top:25px; line-height:1.5; }
+
+  @media(max-width:850px){
+    h1 { font-size:38px; }
+    .gauges { gap:10px; }
+    .gauge { width:320px; height:320px; }
+    .gauge-inner { width:290px; height:290px; }
+    .speed-value { font-size:49px; }
+  }
+
+  @media(max-width:700px){
+    h1 { font-size:31px; }
+    .subtitle { font-size:15px; margin-bottom:28px; }
+    .gauges { flex-direction:column; gap:5px; }
+    .gauge { width:300px; height:300px; }
+    .gauge-inner { width:270px; height:270px; }
+    .info-panel { grid-template-columns:1fr; }
+    .info-item { border-right:none; border-bottom:1px solid #29405a; padding:20px; }
+    .info-item:last-child { border-bottom:none; }
+  }
+
+  @media(max-width:400px){
+    .gauge { width:270px; height:270px; }
+    .gauge-inner { width:243px; height:243px; }
+    .speed-value { font-size:42px; }
+    .speed-icon { font-size:52px; }
+    .gauge-title { font-size:15px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <h1>Internet Speed Test</h1>
+  <p class="subtitle">Check your internet connection speed</p>
+
+  <div class="gauges">
+
+    <div class="gauge">
+      <svg viewBox="0 0 370 370">
+        <circle class="gauge-bg" cx="185" cy="185" r="170"></circle>
+        <circle id="downloadCircle" class="gauge-progress download-progress" cx="185" cy="185" r="170"></circle>
+      </svg>
+      <div class="gauge-inner"></div>
+      <div class="gauge-content">
+        <div class="speed-icon download-icon">↓</div>
+        <div class="gauge-title download-title">DOWNLOAD SPEED</div>
+        <div class="speed-value" id="downloadSpeed">0.00</div>
+        <div class="speed-unit">Mbps</div>
+        <div class="gauge-status" id="downloadStatus">Ready</div>
+      </div>
+    </div>
+
+    <div class="gauge">
+      <svg viewBox="0 0 370 370">
+        <circle class="gauge-bg" cx="185" cy="185" r="170"></circle>
+        <circle id="uploadCircle" class="gauge-progress upload-progress" cx="185" cy="185" r="170"></circle>
+      </svg>
+      <div class="gauge-inner"></div>
+      <div class="gauge-content">
+        <div class="speed-icon upload-icon">↑</div>
+        <div class="gauge-title upload-title">UPLOAD SPEED</div>
+        <div class="speed-value" id="uploadSpeed">0.00</div>
+        <div class="speed-unit">Mbps</div>
+        <div class="gauge-status" id="uploadStatus">Ready</div>
+      </div>
+    </div>
+
+  </div>
+
+  <button class="start-btn" id="startBtn">START TEST</button>
+
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="info-panel">
+    <div class="info-item">
+      <div class="info-icon">◎</div>
+      <div class="info-text">
+        <div class="info-label">PING</div>
+        <div class="info-value" id="ping">--</div>
+        <div class="info-unit">ms</div>
+      </div>
+    </div>
+    <div class="info-item">
+      <div class="info-icon">〽</div>
+      <div class="info-text">
+        <div class="info-label">JITTER</div>
+        <div class="info-value" id="jitter">--</div>
+        <div class="info-unit">ms</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-banner" id="errorBanner"></div>
+
+  <div class="footer">
+    Speed results may vary depending on network traffic, Wi-Fi signal, browser and test server conditions.
+    Best results ke liye is file ko <b>http://</b> se (local server ya website) kholein, seedhe <b>file://</b> se nahi.
+  </div>
+
+</div>
+
+<script>
+(function(){
+
+  "use strict";
+
+  // ---------- CONFIG ----------
+  const DOWNLOAD_URL = "https://speed.cloudflare.com/__down?bytes=100000000";
+  const UPLOAD_URL   = "https://speed.cloudflare.com/__up";
+
+  const DOWNLOAD_CONNECTIONS = 6;
+  const DOWNLOAD_DURATION    = 12000;   // ms
+
+  const UPLOAD_CONNECTIONS = 4;
+  const UPLOAD_DURATION    = 10000;     // ms
+  const UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024;  // 2MB per request (small so slow links still report progress)
+
+  const GAUGE_MAX_MBPS = 1000;
+  const CIRCUMFERENCE  = 2 * Math.PI * 170;
+
+  // ---------- DOM ----------
+  const el = {
+    startBtn:      document.getElementById("startBtn"),
+    progressWrap:  document.getElementById("progressContainer"),
+    progressBar:   document.getElementById("progressBar"),
+    downloadSpeed: document.getElementById("downloadSpeed"),
+    uploadSpeed:   document.getElementById("uploadSpeed"),
+    downloadStat:  document.getElementById("downloadStatus"),
+    uploadStat:    document.getElementById("uploadStatus"),
+    downloadRing:  document.getElementById("downloadCircle"),
+    uploadRing:    document.getElementById("uploadCircle"),
+    ping:          document.getElementById("ping"),
+    jitter:        document.getElementById("jitter"),
+    errorBanner:   document.getElementById("errorBanner")
+  };
+
+  el.downloadRing.style.strokeDasharray = CIRCUMFERENCE;
+  el.downloadRing.style.strokeDashoffset = CIRCUMFERENCE;
+  el.uploadRing.style.strokeDasharray = CIRCUMFERENCE;
+  el.uploadRing.style.strokeDashoffset = CIRCUMFERENCE;
+
+  let running = false;
+
+  el.startBtn.addEventListener("click", runFullTest);
+
+  // ---------- UI HELPERS ----------
+
+  function setStatus(target, text){
+    (target === "download" ? el.downloadStat : el.uploadStat).innerText = text;
+  }
+
+  function showError(msg){
+    el.errorBanner.innerText = msg;
+    el.errorBanner.style.display = "block";
+  }
+
+  function hideError(){
+    el.errorBanner.style.display = "none";
+    el.errorBanner.innerText = "";
+  }
+
+  function updateGauge(kind, mbps){
+    const valueEl = kind === "download" ? el.downloadSpeed : el.uploadSpeed;
+    const ring    = kind === "download" ? el.downloadRing  : el.uploadRing;
+
+    valueEl.innerText = mbps.toFixed(2);
+
+    const percent = Math.min(mbps / GAUGE_MAX_MBPS, 1);
+    ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - percent);
+  }
+
+  function setProgressBar(percent){
+    el.progressBar.style.width = Math.max(0, Math.min(percent, 100)) + "%";
+  }
+
+  function resetUI(){
+    updateGauge("download", 0);
+    updateGauge("upload", 0);
+    el.ping.innerText = "--";
+    el.jitter.innerText = "--";
+    setProgressBar(0);
+    setStatus("download", "Ready");
+    setStatus("upload", "Ready");
+    hideError();
+  }
+
+  function sleep(ms){
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // ---------- CONNECTIVITY PRE-CHECK ----------
+
+  async function canReachTestServer(){
+    try {
+      const res = await fetch(
+        "https://speed.cloudflare.com/__down?bytes=1&x=" + Math.random(),
+        { cache: "no-store" }
+      );
+      return res.ok || res.type === "opaque";
+    } catch (err) {
+      console.error("Connectivity check failed:", err);
+      return false;
+    }
+  }
+
+  // ---------- PING + JITTER ----------
+
+  async function measurePing(){
+    const samples = [];
+
+    for (let i = 0; i < 7; i++){
+      try {
+        const t0 = performance.now();
+        await fetch(
+          "https://speed.cloudflare.com/__down?bytes=1&x=" + Math.random(),
+          { cache: "no-store" }
+        );
+        samples.push(performance.now() - t0);
+      } catch (err) {
+        console.error("Ping sample failed:", err);
+      }
+    }
+
+    if (samples.length === 0) {
+      return { ping: 0, jitter: 0 };
+    }
+
+    samples.sort((a, b) => a - b);
+    const median = samples[Math.floor(samples.length / 2)];
+
+    let diffSum = 0;
+    for (let i = 1; i < samples.length; i++){
+      diffSum += Math.abs(samples[i] - samples[i - 1]);
+    }
+    const jitter = samples.length > 1 ? diffSum / (samples.length - 1) : 0;
+
+    return { ping: median, jitter: jitter };
+  }
+
+  // ---------- DOWNLOAD TEST ----------
+
+  async function measureDownload(){
+
+    let totalBytes = 0;
+    let attempts = 0;
+    let failures = 0;
+    let stop = false;
+
+    const t0 = performance.now();
+
+    async function worker(){
+      while (!stop) {
+        attempts++;
+        try {
+          const res = await fetch(
+            DOWNLOAD_URL + "&x=" + Math.random(),
+            { cache: "no-store" }
+          );
+
+          if (!res.ok) {
+            failures++;
+            console.error("Download request bad status:", res.status);
+            await sleep(300);
+            continue;
+          }
+
+          if (!res.body) {
+            const buf = await res.arrayBuffer();
+            totalBytes += buf.byteLength;
+            continue;
+          }
+
+          const reader = res.body.getReader();
+          while (true) {
+            if (stop) {
+              try { await reader.cancel(); } catch (e) {}
+              break;
+            }
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (value) totalBytes += value.byteLength;
+          }
+
+        } catch (err) {
+          failures++;
+          console.error("Download worker error:", err);
+          if (stop) break;
+          await sleep(300);
+        }
+      }
+    }
+
+    const workers = [];
+    for (let i = 0; i < DOWNLOAD_CONNECTIONS; i++) workers.push(worker());
+
+    const monitor = setInterval(() => {
+      const elapsed = (performance.now() - t0) / 1000;
+      if (elapsed <= 0) return;
+      updateGauge("download", (totalBytes * 8) / elapsed / 1000000);
+      setProgressBar((elapsed / (DOWNLOAD_DURATION / 1000)) * 100);
+    }, 150);
+
+    await sleep(DOWNLOAD_DURATION);
+    stop = true;
+    clearInterval(monitor);
+    await Promise.allSettled(workers);
+
+    const seconds = (performance.now() - t0) / 1000;
+    const finalMbps = (totalBytes * 8) / seconds / 1000000;
+    updateGauge("download", finalMbps);
+
+    return { mbps: finalMbps, allFailed: attempts > 0 && failures === attempts };
+  }
+
+  // ---------- UPLOAD TEST ----------
+  // Uses XMLHttpRequest (not fetch) because only XHR reliably fires
+  // upload progress events cross-browser. That gives real-time byte
+  // counts instead of only learning the byte count once an entire
+  // multi-MB request has fully finished — which is what made upload
+  // look "stuck" on slower connections.
+
+  async function measureUpload(){
+
+    const payload = new Uint8Array(UPLOAD_CHUNK_BYTES);
+
+    let totalBytes = 0;
+    let stop = false;
+    const activeXhrs = [];
+
+    const t0 = performance.now();
+
+    function worker(){
+      return new Promise(resolve => {
+
+        function sendNext(){
+          if (stop) { resolve(); return; }
+
+          const xhr = new XMLHttpRequest();
+          let lastLoaded = 0;
+          activeXhrs.push(xhr);
+
+          xhr.open("POST", UPLOAD_URL + "?x=" + Math.random());
+
+          xhr.upload.onprogress = function(e){
+            const delta = e.loaded - lastLoaded;
+            lastLoaded = e.loaded;
+            if (delta > 0) totalBytes += delta;
+          };
+
+          xhr.onloadend = function(){
+            const idx = activeXhrs.indexOf(xhr);
+            if (idx > -1) activeXhrs.splice(idx, 1);
+
+            if (stop) { resolve(); return; }
+
+            if (xhr.status >= 200 && xhr.status < 300) {
+              sendNext();
+            } else {
+              console.error("Upload worker bad status:", xhr.status);
+              setTimeout(sendNext, 300);
+            }
+          };
+
+          xhr.onerror = function(){
+            console.error("Upload worker network error");
+          };
+
+          xhr.send(payload);
+        }
+
+        sendNext();
+      });
+    }
+
+    const workers = [];
+    for (let i = 0; i < UPLOAD_CONNECTIONS; i++) workers.push(worker());
+
+    const monitor = setInterval(() => {
+      const elapsed = (performance.now() - t0) / 1000;
+      if (elapsed <= 0) return;
+      updateGauge("upload", (totalBytes * 8) / elapsed / 1000000);
+      setProgressBar(50 + Math.min(elapsed / (UPLOAD_DURATION / 1000), 1) * 50);
+    }, 150);
+
+    await sleep(UPLOAD_DURATION);
+    stop = true;
+    clearInterval(monitor);
+
+    // Abort anything still in flight right now instead of waiting
+    // for a slow upload to finish on its own — this is what caused
+    // the test to "hang" for a long time before.
+    activeXhrs.forEach(xhr => { try { xhr.abort(); } catch (e) {} });
+
+    await Promise.allSettled(workers);
+
+    const seconds = (performance.now() - t0) / 1000;
+    const finalMbps = (totalBytes * 8) / seconds / 1000000;
+    updateGauge("upload", finalMbps);
+
+    return finalMbps;
+  }
+
+  // ---------- MAIN FLOW ----------
+
+  async function runFullTest(){
+
+    if (running) return;
+    running = true;
+
+    el.startBtn.disabled = true;
+    el.startBtn.innerText = "TESTING...";
+    resetUI();
+    el.progressWrap.style.display = "block";
+
+    try {
+
+      setStatus("download", "Checking connection...");
+      const reachable = await canReachTestServer();
+
+      if (!reachable) {
+        showError(
+          "Test server tak connect nahi ho pa raha (CORS / network blocked). " +
+          "Agar ye file file:// se khuli hai to usse http:// (local server ya live website) se kholein. " +
+          "Detail error ke liye browser console (F12) dekhein."
+        );
+        setStatus("download", "Blocked");
+        setStatus("upload", "Blocked");
+        el.startBtn.innerText = "TRY AGAIN";
+        el.startBtn.disabled = false;
+        running = false;
+        return;
+      }
+
+      const pingResult = await measurePing();
+      el.ping.innerText = pingResult.ping.toFixed(0);
+      el.jitter.innerText = pingResult.jitter.toFixed(1);
+
+      setStatus("download", "Testing...");
+      setStatus("upload", "Waiting...");
+
+      const downloadResult = await measureDownload();
+
+      if (downloadResult.allFailed) {
+        setStatus("download", "All requests blocked");
+        showError(
+          "Download test ke sabhi requests fail hue (CORS/network error). " +
+          "Console (F12 → Console) mein exact error dekhein."
+        );
+      } else {
+        setStatus("download", "Complete");
+      }
+
+      setStatus("upload", "Testing...");
+      const uploadMbps = await measureUpload();
+      setStatus("upload", "Complete");
+
+      setProgressBar(100);
+      el.startBtn.innerText = "TEST AGAIN";
+
+    } catch (err) {
+      console.error(err);
+      setStatus("download", "Test failed");
+      setStatus("upload", "Try again");
+      showError("Test fail ho gaya: " + (err && err.message ? err.message : err));
+      el.startBtn.innerText = "TRY AGAIN";
+    }
+
+    el.startBtn.disabled = false;
+    running = false;
+  }
+
+})();
+</script>
+
+</body>
+</html>
